@@ -33,8 +33,12 @@ const callbackifyPromiseResolution = (value, cb) => {
   }
 };
 
-/** @returns {number} */
-const currentTimestamp = () => Math.ceil(Date.now() / 1000);
+/** @returns {Date} */
+const currentTimestamp = () => {
+  const d = new Date(0);
+  d.setUTCSeconds(Math.ceil(Date.now() / 1000));
+  return d;
+};
 
 /**
  * @see https://www.postgresql.org/docs/9.5/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS
@@ -229,7 +233,7 @@ module.exports = function (session) {
      * @access public
      */
     pruneSessions (fn) {
-      this.query('DELETE FROM ' + this.quotedTable() + ' WHERE expire < to_timestamp($1)', [currentTimestamp()], err => {
+      this.query('DELETE FROM ' + this.quotedTable() + ' WHERE expire < $1::timestamp', [currentTimestamp()], err => {
         if (fn && typeof fn === 'function') {
           return fn(err);
         }
@@ -271,7 +275,7 @@ module.exports = function (session) {
      * Figure out when a session should expire
      *
      * @param {SessionObject} sess – the session object to store
-     * @returns {number} the unix timestamp, in seconds
+     * @returns {Date}
      * @access private
      */
     _getExpireTime (sess) {
@@ -285,7 +289,9 @@ module.exports = function (session) {
         expire = Math.ceil(Date.now() / 1000 + ttl);
       }
 
-      return expire;
+      const d = new Date(0);
+      d.setUTCSeconds(expire);
+      return d;
     }
 
     /**
@@ -345,7 +351,7 @@ module.exports = function (session) {
      * @access public
      */
     get (sid, fn) {
-      this.query('SELECT sess FROM ' + this.quotedTable() + ' WHERE sid = $1 AND expire >= to_timestamp($2)', [sid, currentTimestamp()], (err, data) => {
+      this.query('SELECT sess FROM ' + this.quotedTable() + ' WHERE sid = $1 AND expire >= $2::timestamp', [sid, currentTimestamp()], (err, data) => {
         if (err) { return fn(err); }
         // eslint-disable-next-line unicorn/no-null
         if (!data) { return fn(null); }
@@ -368,7 +374,7 @@ module.exports = function (session) {
      */
     set (sid, sess, fn) {
       const expireTime = this._getExpireTime(sess);
-      const query = 'INSERT INTO ' + this.quotedTable() + ' (sess, expire, sid) SELECT $1, to_timestamp($2), $3 ON CONFLICT (sid) DO UPDATE SET sess=$1, expire=to_timestamp($2) RETURNING sid';
+      const query = 'INSERT INTO ' + this.quotedTable() + ' (sess, expire, sid) SELECT $1, $2::timestamp, $3 ON CONFLICT (sid) DO UPDATE SET sess=$1, expire=$2::timestamp RETURNING sid';
 
       this.query(
         query,
@@ -410,7 +416,7 @@ module.exports = function (session) {
       const expireTime = this._getExpireTime(sess);
 
       this.query(
-        'UPDATE ' + this.quotedTable() + ' SET expire = to_timestamp($1) WHERE sid = $2 RETURNING sid',
+        'UPDATE ' + this.quotedTable() + ' SET expire = $1::timestamp WHERE sid = $2 RETURNING sid',
         [expireTime, sid],
         err => { fn && fn(err); }
       );
