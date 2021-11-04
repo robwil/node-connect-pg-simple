@@ -1,3 +1,5 @@
+# This fork contains a single simple commit to make this library CockroachDB compatible. The code changes come from https://github.com/raymondflores/node-connect-cockroachdb-simple, but are based on a more recent version of the upstream.
+
 # Connect PG Simple
 
 A simple, minimal PostgreSQL session store for Express/Connect
